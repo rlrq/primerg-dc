@@ -1,5 +1,9 @@
 # PRIMERg
-Designs deep-sequencing/ NGS primers to assess editing outcomes from multiple gRNA targets within a continuous genome. 
+Designs deep-sequencing/ NGS primers to assess editing outcomes from multiple gRNA targets within a DIScontinuous genome.
+
+**This fork enables screening in whole genomes (i.e. multiple sequences in a single fasta file), and handles large sequence data without storing it all in memory.**
+
+As with the original primerg, primerg-dc only works for 3' PAM, and allows ambiguous bases in the PAM pattern.
 
 
 ## Background and problem definition
@@ -15,7 +19,7 @@ Manual design of unique primers is increasingly difficult as the number of targe
 
 
 ## PRIMERg as a solution
-PRIMERg can automatically design specific and/ or unique deep-sequencing primers per Cas9-targeted locus in a continuous genome (e.g. sequence consisting of all members of a gene cluster with high sequence similarity). 
+PRIMERg can automatically design specific and/ or unique deep-sequencing primers per Cas9-targeted locus in a discontinuous genome (e.g. sequence consisting of all members of a gene cluster with high sequence similarity). 
 
 Two sets of primers are produced: the first PCR product is large (default: 1200-2000 bp) and flanks the region to be sequenced, thus providing the template DNA for the second PCR; the second PCR produces the amplicon to be sequenced (default: 250-280 bp). The purpose of the first PCR is to restrict the template for the second PCR to increase primer specificity. 
 

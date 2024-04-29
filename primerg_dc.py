@@ -49,10 +49,12 @@ increment = None                         # Increment of allowed primary amplicon
 max_primary_amplicon_size = None      # Maximum primary amplicon size
 
 ## Import packages
+from index_fasta import IndexedFasta
 from primerg_parameters import *
 from os import chdir
 from sys import exit
-from re import findall, finditer
+import regex as re
+from re import findall, re.finditer
 from pandas import DataFrame
 import primer3
 from Bio import SeqIO
@@ -63,7 +65,10 @@ from Bio.Blast import NCBIXML
 
 ## Reading parameters
 chdir(directory)
-genomic_template = str(SeqIO.read(genomic_DNA_fasta, "fasta").seq).upper()    #template read as string                      
+#template read as string
+genomic_templates = IndexedFasta(genomic_DNA_fasta)
+genomic_template = None
+ifasta = genomic_templates
 
 
 ## Read gRNA fasta file into a list
@@ -104,10 +109,64 @@ def gRNA_pam_listing(gRNA_list, pam, genomic_template):
     gRNA_pam_list = [x + reg_pam for x in gRNA_list]
     
     for gRNA_pam in gRNA_pam_list:
-        F += findall(gRNA_pam, genomic_template)
-        R += findall(gRNA_pam, str(Seq(genomic_template).reverse_complement()))
+        F += re.findall(gRNA_pam, genomic_template)
+        R += re.findall(gRNA_pam, str(Seq(genomic_template).reverse_complement()))
         
     return [list(set(F)), list(set(R))]
+
+def _gRNA_pam_pos_sliding(gRNA_pam_list, subject, window = 100000, overlap = 100):
+    """
+    Searches for regex pattern in memory saving way using sliding
+    within ``window`` and overlap ``overlap``.
+    Outputs dict of 2 elements: 'F' indexed pertains to gRNA-PAM in fwd strand, 'R' to rvs.
+    Each element is a list of tuples of [(start1, end1), (start2, end2), ...].
+    Positions pertaining to rvs strand matches are relative to fwd strand (i.e. slice fwd then reverse complement to get gRNA-PAM).
+    """
+    # Time and space depends on Regex's re.findall
+    F, R = [], []
+    for i in range(0, len(subject), window - overlap):
+        fwd = subject[i:i+window]
+        rvs = str(fwd.reverse_complement())
+        fwd = str(fwd)
+        window_truesize = len(fwd)
+        for gRNA_pam in gRNA_pam_list:
+            # F.extend(list(re.findall(gRNA_pam, fwd, overlapped = True)))
+            # R.extend(list(re.findall(gRNA_pam, rvs, overlapped = True)))
+            F.extend([(i+x.start(), i+x.end()) for x in re.finditer(gRNA_pam, fwd, overlapped = True)])
+            # R.extend([len(subject)-i-window_truesize+x.start()
+            #           for x in re.finditer(gRNA_pam, rvs, overlapped = True)]) ## relative to rvs strand
+            R.extend([(i+window_truesize-x.end(), i+window_truesize-x.start())
+                       for x in re.finditer(gRNA_pam, rvs, overlapped = True)]) ## relative to fwd strand
+    return {"F": sorted(set(F)), "R": sorted(set(R))}
+
+def gRNA_pam_pos_in_IndexedFasta(gRNA_list, pam, ifasta, window = 100000, overlap, 100):
+    """
+    Searches for regex pattern in memory saving way using sliding
+    within ``window`` and overlap ``overlap``.
+    Outputs dict of 2 elements: 'F' indexed pertains to gRNA-PAM in fwd strand, 'R' to rvs.
+    Each element is a dictionary of {<chr1>: [(start1, end1), (start2, end2), ...], <chr2>: [(start1, end1), ...], ...}.
+    Positions pertaining to rvs strand matches are relative to fwd strand (i.e. slice fwd then reverse complement to get gRNA-PAM).
+    """
+    # Time and space depends on Regex's re.findall    
+    IUPAC_dict = {'A': 'A', 'T': 'T', 'C': 'C', 'G': 'G',
+                  'N': '[ATCG]', 'R': '[AG]', 'Y': '[CT]',
+                  'S': '[GC]', 'W':'[AT]', 'K':'[GT]',
+                  'M': '[AC]', 'B': '[CGT]', 'D': '[AGT]',
+                  'H': '[ACT]', 'V': '[ACG]'}    
+    reg_pam = ''
+    F, R = {}, {}
+    ## make PAM pattern
+    for letter in pam:
+        reg_pam += IUPAC_dict[letter]
+    ## make gRNA+PAM pattern
+    gRNA_pam_list = [x + reg_pam for x in gRNA_list]
+    ## find gRNA+PAM
+    for seq in ifasta:
+        fr = _gRNA_pam_listing_sliding(gRNA_pam_list, seq, window = window, overlap = overlap)
+        F[seq.name] = list(fr['F'])
+        R[seq.name] = list(fr['R'])
+    return {'F': F, 'R': R}
+
 
 ## Primer design
 
@@ -115,7 +174,7 @@ def gRNA_pam_listing(gRNA_list, pam, genomic_template):
 class SequenceError(Exception):
     pass
 
-#  Find gRNA in genomic DNA: returns list of positions of each gRNA's cleavage site; only one position per gRNA will be returned
+#  Find gRNA in genomic DNA: returns list of positions of each gRNA's cleavage site
 def gRNA_finder(gRNA_pam_list, genomic_template):
     # Time: Depends on Regex's re.finditer
     # Space: O(n) where n is len(gRNA_pam_list)
@@ -129,14 +188,14 @@ def gRNA_finder(gRNA_pam_list, genomic_template):
     #find position of forward gRNA cleavage site
     for gRNA_pam in gRNA_pam_list[0]:
         #find overlapping matches for forward gRNA AND keep list of Cas9 cleavage site position
-        temp  += [ (m.start() + len(gRNA_pam) - len(pam) - cleavage_pos) for m in finditer('(?=' + gRNA_pam + ')', genomic_template) ] 
+        temp  += [ (m.start() + len(gRNA_pam) - len(pam) - cleavage_pos) for m in re.finditer('(?=' + gRNA_pam + ')', genomic_template) ] 
         lst_grand += [(gRNA_pam, temp)]
         temp = []
         
     #find position of reverse complement gRNA cleavage site
     for gRNA_pam in gRNA_pam_list[1]:
         #find overlapping matches with reverse comp gRNA AND keep list Cas9 cleavage site position
-        temp += [ (m.start() + len(pam) + cleavage_pos) for m in finditer('(?=' + str(Seq(gRNA_pam).reverse_complement()) + ')', genomic_template) ] 
+        temp += [ (m.start() + len(pam) + cleavage_pos) for m in re.finditer('(?=' + str(Seq(gRNA_pam).reverse_complement()) + ')', genomic_template) ] 
         lst_grand += [(gRNA_pam, temp)]
         temp = []
     
@@ -149,6 +208,25 @@ def gRNA_finder(gRNA_pam_list, genomic_template):
     lst_grand = []
     
     return unpacked_lst
+
+## find cleavage positions from output of gRNA_pam_pos_in_IndexedFasta
+def gRNA_pam_pos_to_cleavage_pos(gRNA_pam_pos_FR):
+    """
+    Takes output of gRNA_pam_pos_in_IndexedFasta.
+    Outputs dict of 2 elements: 'F' indexed pertains to gRNA-PAM in fwd strand, 'R' to rvs.
+    Each element is a dictionary of lists of cleavage positions of {<chr1>: [pos1, pos2, ...], <chr2>: [pos1, pos2, ...], ...}.
+    Positions pertaining to rvs strand matches are relative to fwd strand (i.e. slice fwd then reverse complement to get gRNA-PAM).
+    cleavage_pos assumed to be 1-indexed.
+    """
+    F, R = {}, {}
+    pam_len = len(pam)
+    ## fwd
+    for seq_name, ranges in gRNA_pam_pos_FR['F']:
+        F[seq_name] = [end - pam_len - cleavage_pos for start, end in ranges] ## no -1 cuz end is exclusive
+    ## rvs
+    for seq_name, ranges in gRNA_pam_pos_FR['R']:
+        R[seq_name] = [start + pam_len + cleavage_pos - 1 for start, end in ranges] ## -1 because start is inclusive
+    return {'F': F, 'R': R}
 
 # Find tuple of primers F and R for ONE cleavage site
 def primer_design(pos, template, amplicon_size):
@@ -212,6 +290,9 @@ def primer_design(pos, template, amplicon_size):
     # Return 
     return (pos, F_lst, R_lst)
 
+def pseudo_rprimer_blast_ifasta(primer_list, ifasta):
+    
+
 # Filter primer_list (primer_list = ((list of F primers), (list of R primers)) by pseudo_primer_blast 
 # Returns primer_list with only specific primers left
 def pseudo_primer_blast(primer_list, template):
@@ -233,17 +314,27 @@ def pseudo_primer_blast(primer_list, template):
                         "primerg_specificity_check_template.fasta", "fasta")
         
             # BLAST set-up
-            cline = NcbiblastnCommandline(query = "primerg_specificity_check_primer.fasta", 
-                                          subject = "primerg_specificity_check_template.fasta", 
-                                          evalue= 30000,                            #high e-value to allow more chance hits so we can evaluate all possible binding sites
-                                          word_size = 7,                            #small seed is required as primer seq is short; allows more possible hits
-                                          task = "blastn-short",                    #BLASTN program optimized for sequences shorter than 50 bases
-                                          dust = "'no'",                            #No masking of low complexity sequence
-                                          soft_masking = "'false'",                 #No masking of low complexity sequence
-                                          strand = "plus",                          #Only plus strand is used as query
-                                          max_target_seqs = 50000,                  #Allow more hits to be shown
-                                          out = "primer-blast.xml",                 #store BLAST result in XML file
-                                          outfmt = 5 )                              #format of output as XML means outfmt = 5
+            cline = NcbiblastnCommandline(
+                query = "primerg_specificity_check_primer.fasta", 
+                subject = "primerg_specificity_check_template.fasta",
+                #high e-value to allow more chance hits so we can evaluate all possible binding sites
+                evalue= 30000,
+                #small seed is required as primer seq is short; allows more possible hits
+                word_size = 7,
+                #BLASTN program optimized for sequences shorter than 50 bases
+                task = "blastn-short",
+                #No masking of low complexity sequence
+                dust = "'no'",
+                #No masking of low complexity sequence
+                soft_masking = "'false'",
+                #Only plus strand is used as query
+                strand = "plus",
+                #Allow more hits to be shown
+                max_target_seqs = 50000,
+                #store BLAST result in XML file
+                out = "primer-blast.xml",
+                #format of output as XML means outfmt = 5
+                outfmt = 5 )
             
             # Run BLAST
             cline()
@@ -292,8 +383,10 @@ def generate_primer_pairs(primer_list, N, template, amplicon_size):
     
     original_N = N # keeps track of starting N value
     n = N          # keeps track of alternative list length
-    
-    F_lst = []     # Generate F and R primer lists where positions in each list is corresponding e.g. lst[0][0] corresponds to list[1][0]  
+
+    # Generate F and R primer lists where positions in each list is corresponding
+    # e.g. lst[0][0] corresponds to list[1][0]
+    F_lst = []
     R_lst = []
     alt_F_lst = [] # alternate lists keep specific + unspecific primer pairs
     alt_R_lst = []
@@ -460,10 +553,15 @@ def generate_amplicon(pos, F, R, template, amplicon_size):
 ### Execution
 
 ## Set up dataframe
-df = DataFrame(columns = ['cleavage_pos', 'gRNA_pam', 
-                             'F1', 'R1', 
-                             'F2', 'R2', 
-                             'unique_F2', 'unique_R2'])
+# df = DataFrame(columns = ['cleavage_pos', 'gRNA_pam', 
+#                              'F1', 'R1', 
+#                              'F2', 'R2', 
+#                              'unique_F2', 'unique_R2'])
+df = DataFrame(columns = ['seqid', 'strand',
+                          'cleavage_pos', 'gRNA_pam', 
+                          'F1', 'R1', 
+                          'F2', 'R2', 
+                          'unique_F2', 'unique_R2'])
 
 ## Ensure excel file is not opened
 try: 
@@ -479,14 +577,154 @@ filtered_primer_list = None
 
 # Obtain list of gRNAs and cleavage site positions
 gRNA_list = gRNA_listing(gRNA_fasta)
-gRNA_pam_list = gRNA_pam_listing(gRNA_list, pam, genomic_template)
-gRNA_pos = gRNA_finder(gRNA_pam_list, genomic_template)
+## tuple, where element 1 is dict of list of ranges (tuple of (start, end)) of gRNA-PAM in fwd strand
+## and element 2 is in rvs strand (relative to fwd), both indexed by chr
+## ({<chrA>: [<pos in fwd>], <chrB>: [<pos in fwd>], ...}, {<chrA>: [pos in rvs (relative to fwd)], ...})
+gRNA_pam_pos_FR = gRNA_pam_pos_in_IndexedFasta(gRNA_list, pam, ifasta)
+gRNA_cleavage_pos = gRNA_pam_pos_to_cleavage_pos(gRNA_pam_pos_FR)
+# gRNA_pos = gRNA_finder(gRNA_pam_list, genomic_template)
+
+## TODO: attempting to adapt for multi-seq input
 
 index = 0
 start_index = 0
 original_value = primary_PCR_amplicon_size[1]
 
-for pos in gRNA_pos:    
+for strand, gRNA_pam_pos in gRNA_pam_pos_FR.items():
+    if strand == 'F': get_seq = lambda c, s, e: ifasta[c][s:e]
+    elif strand == 'R': get_seq = lambda c, s, e: ifasta[c][s:e].reverse_complement()
+    for seqid, ranges in gRNA_pam_pos.items():
+        for i, r in enumerate(ranges):
+            start_index = index
+            cleavage_pos = gRNA_cleavage_pos[strand][seqid][i]
+            gRNA_pam = get_seq(chrom, *r)
+            genomic_template = get_seq(chrom,
+                                       r[0] - max_primary_amplicon_size - primer_max_size - 100,
+                                       r[1] + max_primary_amplicon_size + primer_max_size + 100)
+            ## update meta-data
+            df2 = DataFrame([ [seqid, strand, cleavage_pos, gRNA_pam, '', '', '', '', '', ''] ,],
+                            columns = ["F1", "R1", "F2", "R2", "unique_F2", "unique_R2"])
+            ## just. keep adding rows for # primer pairs requested
+            for i in range(num_primer_pair_per_cleavage_pos):
+                df = df.append(df2).reset_index(drop = True)
+            print((f"Processing gRNA + PAM {df.loc[index, 'gRNA_pam']}"
+                   f" at position {df.loc[index, 'cleavage_pos']}"))
+            ## update primary PCR primer (first PCR)
+            print("Generating primary primer list")
+            primer_list = primer_design(pos[1], genomic_template, primary_PCR_amplicon_size)
+            print("Filtering primary primer list")
+            filtered_primer_list = pseudo_primer_blast(primer_list, genomic_template)
+            while filtered_primer_list[1] == [] and filtered_primer_list[2] == []:
+                # Break if max amplicon size is reached
+                if primary_PCR_amplicon_size[1] > max_primary_amplicon_size: 
+                    break 
+                primary_PCR_amplicon_size[1] += increment
+                # Generate new primary primer list with increased allowed amplicon size
+                print("Generating primary primer list")
+                primer_list = primer_design(pos[1], genomic_template, primary_PCR_amplicon_size)
+                print("Filtering primary primer list")
+                filtered_primer_list = pseudo_primer_blast(primer_list, genomic_template)
+                print(("No primary primer found. Increased allowed primary amplicon size"
+                       f" to {primary_PCR_amplicon_size}"))
+            primary_PCR_amplicon_size[1] = original_value
+            print("Generating primary primer pairs")
+            primer_pairs = generate_primer_pairs(
+                filtered_primer_list,
+                num_primer_pair_per_cleavage_pos,
+                genomic_template,
+                primary_PCR_amplicon_size)
+            ###check###
+            print(primer_pairs)
+            for i in range(num_primer_pair_per_cleavage_pos):
+                # Add primer to df except when there are no specific primary PCR primers
+                try:
+                    df.loc[index, 'F1'] = primer_pairs[1][i]
+                except:
+                    df.loc[index, 'F1'] = "NA"
+                try:
+                    df.loc[index, 'R1'] = primer_pairs[2][i]
+                except:
+                    df.loc[index, 'R1'] = "NA"
+                index += 1
+            # Update secondary PCR primer (second PCR)
+            print("Generating secondary primer list")
+            max_amplicon2_len = int(secondary_PCR_amplicon_size[1]/2)
+            local_genomic_template = genomic_template[int(pos[1]-max_amplicon2_len):
+                                                      int(pos[1] + max_amplicon2_len)]
+            primer_list = primer_design(int(0.5*len(local_genomic_template)),
+                                        local_genomic_template, secondary_PCR_amplicon_size)    
+            print("Screening secondary primer list against genomic template to get globally specific primers")
+            # Filter by genomic template to get globally specific primers
+            filtered_primer_list = pseudo_primer_blast(primer_list, genomic_template)
+            print("Generating globally specific secondary primer pairs")
+            primer_pairs = generate_primer_pairs(
+                filtered_primer_list,
+                num_primer_pair_per_cleavage_pos,
+                local_genomic_template,
+                secondary_PCR_amplicon_size)
+            if primer_pairs[1] == [] or primer_pairs[2] == []:        
+                print("Globally specific primers are non-existent")
+                print(("Screening secondary primer list against first PCR amplicon"
+                       " to get locally specific primers"))
+                # Filter by genomic template to get globally specific primers
+                filtered_primer_list = pseudo_primer_blast(primer_list, local_genomic_template)
+                print("Generating locally specific secondary primer pairs")
+                primer_pairs = generate_primer_pairs(
+                    filtered_primer_list,
+                    num_primer_pair_per_cleavage_pos,
+                    local_genomic_template,
+                    secondary_PCR_amplicon_size)
+            for i in range(num_primer_pair_per_cleavage_pos):
+                try:
+                    df.loc[start_index, 'F2'] = primer_pairs[1][i]
+                    df.loc[start_index, 'R2'] = primer_pairs[2][i]
+                    amplicon = generate_amplicon(
+                        primer_pairs[0],
+                        df.loc[start_index, 'F2'],
+                        df.loc[start_index, 'R2'],
+                        local_genomic_template,
+                        secondary_PCR_amplicon_size)
+                    ampliconF = amplicon[len(df.loc[start_index, 'F2']):
+                                         secondary_PCR_amplicon_size[1]-len(df.loc[start_index, 'F2'])]
+                    ampliconR = amplicon[-(secondary_PCR_amplicon_size[1]):
+                                         -len(df.loc[start_index, 'R2']):]
+                    countF = 0
+                    countR = 0
+                    for i in re.finditer('(?=' + ampliconF + ')', genomic_template):
+                        countF += 1
+                    for i in re.finditer('(?=' + ampliconR + ')', genomic_template):
+                        countR += 1
+                    if countF == 1:
+                        df.loc[start_index, 'unique_F2'] = 1
+                    elif countF > 1:
+                        df.loc[start_index, 'unique_F2'] = 0
+                    else:
+                        df.loc[start_index, 'unique_F2'] = "Error: Amplicon F count in genome is negative"
+                    if countR == 1:
+                        df.loc[start_index, 'unique_R2'] = 1
+                    elif countR > 1:
+                        df.loc[start_index, 'unique_R2'] = 0
+                    else:
+                        df.loc[start_index, 'unique_R2'] = "Error: Amplicon R count in genome is negative"
+                    start_index += 1
+                except IndexError: # when no secondary primer is specific to even second PCR amplicon
+                    df.loc[start_index, 'F2'] = "NA"
+                    df.loc[start_index, 'R2'] = "NA"
+                    start_index += 1            
+            print("Dataframe updated:")    
+            print(df)
+
+
+
+
+## TODO: figure out what's going on here and adapt for multi-seq input
+## original below
+
+index = 0
+start_index = 0
+original_value = primary_PCR_amplicon_size[1]
+
+for pos in gRNA_pos:
     start_index = index
     # Update meta-data
     df2 = DataFrame([ [pos[1], pos[0], '', '', '', '', '', ''] ,], 
@@ -575,9 +813,9 @@ for pos in gRNA_pos:
             countF = 0
             countR = 0
             
-            for i in finditer('(?=' + ampliconF + ')', genomic_template):
+            for i in re.finditer('(?=' + ampliconF + ')', genomic_template):
                 countF += 1
-            for i in finditer('(?=' + ampliconR + ')', genomic_template):
+            for i in re.finditer('(?=' + ampliconR + ')', genomic_template):
                 countR += 1
                 
             if countF == 1:
