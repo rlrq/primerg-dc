@@ -26,14 +26,16 @@ Two sets of primers are produced: the first PCR product is large (default: 1200-
 All primer design starts with primer3, so they are theoretically optimized. PRIMERg will filter the primers to keep the specific ones, if it is possible. The uniqueness of the second PCR primer (whether the amplicon to be sequenced has “unique” SNPs to help differentiate the desired amplicon from others produced by non-specific binding) is checked and marked in the output.
 
 
-## PRIMERg algorithm
+## PRIMERg-dc algorithm
 ![Alt text](https://raw.githubusercontent.com/rlrq/primerg-dc/main/image/primerg-dc_figure_overview.png)
+
+In PRIMERg-dc, primer sequences output by Primer3 are collapsed to unique candidate sequences. Pseudo-primer-BLAST executes BLASTN of candidate primers against the full genomic sequence and tracks the locations of alignments that meet the binding thresholds (minimum alignment length, maximum total mismatches [unaligned positions count as mismatches], minimum matches in the last 5 bp at the 3' end of a primer [unaligned positions count as mismatches]). All possible combinations of plus and minus primers are checked.
 
 
 ## Installations
-PRIMERg runs on Linux. For Windows users, you can download Ubuntu (tested on Ubutun 20.04 but new versions should work. Installation guide: https://ubuntu.com/tutorials/ubuntu-on-windows#1-overview)
+PRIMERg-dc runs on Linux. For Windows users, you can download Ubuntu (tested on Ubutun 20.04 but new versions should work. Installation guide: https://ubuntu.com/tutorials/ubuntu-on-windows#1-overview)
 
-Python 3.8.5  on Linux (Confirm that Python3 is already install with ```python3 --version```. If you need to update your python version, do: ```sudo apt update```, ```sudo apt upgrade```, then ```sudo apt upgrade python3```)
+PRIMERg-dc was developed with Python 3.10.14 on Linux (Confirm that Python3 is already install with ```python3 --version```. If you need to update your python version, do: ```sudo apt update```, ```sudo apt upgrade```, then ```sudo apt upgrade python3```)
 
 Before running the rest of the codes here on Linux, update the package list:
 ```sudo apt update```
