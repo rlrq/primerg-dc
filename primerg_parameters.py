@@ -16,7 +16,6 @@ genomic_DNA_fasta = "test_genomic.fasta"          #full fasta file of genome aga
 #  Optional input
 
 #  CRISPR-Cas parameters
-# pam = "NGG"                           #e.g. "NGG", let pam be '' if pamless, follows IUPAC DNA (e.g. R = A/G)
 pam = "NGN"                           #e.g. "NGG", let pam be '' if pamless, follows IUPAC DNA (e.g. R = A/G)
 gRNA_len = 20
 cleavage_pos = 3                      #nth base from 3' end of gRNA where Cas9 cleaves genomic template,
@@ -44,7 +43,7 @@ max_target_seqs = 50000
 min_primer_len = 10                    # The minimum length of alignment between primer and template to consider a primer as unspecific; default 10 bp is minimum for annealing prior to extension
 total_mismatch = 6                     # The minimum number of mismatches between primer and template to consider a primer as unspecific; default is 6 (each unaligned position counts as a mismatch)
 three_prime_match = 3                  # At least X matches within the last 5 bp at the 3' end; default is 3 (counts from the end of the primer; each unaligned position at the 3' end counts as a mismatch)
-valid_amplicon_size = 500              # Size of amplicon produced by unspecific primers to be considered valid amplicon, default is 500 ***************** 500
+valid_amplicon_size = 500              # Size of amplicon produced by unspecific primers to be considered valid amplicon, default is 500 ***************** 500  (defunct. I'm not sure it was even used by the original primerg)
 NGS_amplicon_size = 750                # Length of amplicon of EACH primer in paired-end sequencing; default is set at 150 for iSeq **********  (defunct. see secondary_PCR_amplicon_size)
 
 #  Primerg
@@ -55,11 +54,11 @@ output_tsv = "sample_output.tsv"              #if an tsv name is specified (e.g.
 #  New inputs
 primary_PCR_amplicon_size = [1200, 2000] # First PCR product size (size of amplicon as template for second PCR)
 secondary_PCR_amplicon_size = [250, 280] # Second PCR product size (size of amplicon for sequencing)
-num_primer_pair_per_cleavage_pos = 10     # Generate x number of primer pairs per cleavage site
+num_primer_pair_per_cleavage_pos = 10    # Generate x number of primer pairs per cleavage site
 increment = 300                          # Increment of allowed primary amplicon size when no primer can be generated
 max_primary_amplicon_size = 3500         # Maximum primary amplicon size
-max_off_target_primary_amplicon_size = float("Inf")    # Length of maximum unallowable off-target amplicon size. Definition from https://manual.geneious.com/en/latest/13-Primers.html: 'Off-target primer pairs that result in amplicon sizes larger than specified value are considered as primer candidates due to decreasing efficiency of PCR as the amplicon size increases.' Set to float("Inf") to discard off-target primer pairs regardless of off-target amplicon size.
-max_off_target_secondary_amplicon_size = float("Inf")    # Length of maximum unallowable off-target amplicon size. Definition from https://manual.geneious.com/en/latest/13-Primers.html: 'Off-target primer pairs that result in amplicon sizes larger than specified value are considered as primer candidates due to decreasing efficiency of PCR as the amplicon size increases.' Set to float("Inf") to discard off-target primer pairs regardless of off-target amplicon size.
+min_acceptable_off_target_primary_amplicon_size = float("Inf")    # Length of minimum acceptable off-target amplicon size. Definition from https://manual.geneious.com/en/latest/13-Primers.html: 'Off-target primer pairs that result in amplicon sizes larger than specified value are considered as primer candidates due to decreasing efficiency of PCR as the amplicon size increases.' Set to float("Inf") to discard off-target primer pairs regardless of off-target amplicon size.
+min_acceptable_off_target_secondary_amplicon_size = float("Inf")    # Length of minimum acceptable off-target amplicon size. Definition from https://manual.geneious.com/en/latest/13-Primers.html: 'Off-target primer pairs that result in amplicon sizes larger than specified value are considered as primer candidates due to decreasing efficiency of PCR as the amplicon size increases.' Set to float("Inf") to discard off-target primer pairs regardless of off-target amplicon size.
 on_target_ranges = {}               # dict of {<subject_id>: [(<start>, <end>), (<start>, <end>)]}; ignore any off-target amplicons within these ranges (both primers of a pair must be within)
 
 #######################################################################################################################

@@ -90,8 +90,9 @@ def primerg(gRNA_pos, template_DNA_fasta, suppress_output_message = False, print
         ## current: output is object of class PrimersOffTargetChecker
         ## NOTE: previous output was VALID primers. current output is object of class PrimersOffTargetChecker
         print("Filtering primary primer list")
-        primers_nr.off_target_checker = make_off_target_checker(primers_nr, template_DNA_fasta, genomic_DNA_fasta,
-                                                                max_off_target_primary_amplicon_size)
+        primers_nr.off_target_checker = make_off_target_checker(
+            primers_nr, template_DNA_fasta, genomic_DNA_fasta,
+            min_acceptable_off_target_primary_amplicon_size)
 
         ## if no valid primers, increase primary amplicon size until there ARE valid primers or until max amplicon size is reached
         i = 1
@@ -101,7 +102,7 @@ def primerg(gRNA_pos, template_DNA_fasta, suppress_output_message = False, print
                 ## there are no valid primer pairs
                 and not primers_nr.has_primer_pairs(
                     check_valid = True, max_amplicon_size = max_primary_amplicon_size,
-                    max_off_target_amplicon_size = max_off_target_primary_amplicon_size,
+                    min_acceptable_off_target_amplicon_size = min_acceptable_off_target_primary_amplicon_size,
                     primer3_args = primers_nr.params, full = False)
         ):
 
@@ -119,7 +120,7 @@ def primerg(gRNA_pos, template_DNA_fasta, suppress_output_message = False, print
             print("Filtering primary primer list")
             new_primers_nr.off_target_checker = make_off_target_checker(
                 new_primers_nr, template_DNA_fasta, genomic_DNA_fasta,
-                max_off_target_primary_amplicon_size,
+                min_acceptable_off_target_primary_amplicon_size,
                 exclude_collapsed_seqs = primers_nr,
                 intersect_primers_off_target_checker = primers_nr.off_target_checker,
                 prefix = f"{i}|")
@@ -135,7 +136,7 @@ def primerg(gRNA_pos, template_DNA_fasta, suppress_output_message = False, print
         print("Filtering final primary primer list")
         primers_nr_primary.off_target_checker = make_off_target_checker(
             primers_nr_primary, template_DNA_fasta, genomic_DNA_fasta,
-            max_off_target_primary_amplicon_size,
+            min_acceptable_off_target_primary_amplicon_size,
             exclude_collapsed_seqs = primers_nr,
             merge_primers_off_target_checker = primers_nr.off_target_checker,
             prefix = "uniq|")
@@ -143,7 +144,7 @@ def primerg(gRNA_pos, template_DNA_fasta, suppress_output_message = False, print
         print("Generating primary primer pairs")
         primer_pairs_primary = primers_nr_primary.primer_pairs(
             check_valid = True, max_amplicon_size = max_primary_amplicon_size,
-            max_off_target_amplicon_size = max_off_target_primary_amplicon_size,
+            min_acceptable_off_target_amplicon_size = min_acceptable_off_target_primary_amplicon_size,
             primer3_args = primers_nr.params, full = False, specific_in_template = 1)
         ## collapse to unique primer sequence combinations and sort by penalty
         primer_pairs_primary = sort_unique_primer_pairs(primer_pairs_primary)
@@ -183,13 +184,15 @@ def primerg(gRNA_pos, template_DNA_fasta, suppress_output_message = False, print
 
         print("Screening secondary primer list against genomic template to get globally specific primers")
         # Filter by genomic template to get globally specific primers
-        primers_nr.off_target_checker = make_off_target_checker(primers_nr, local_template_DNA_fasta, genomic_DNA_fasta,
-                                                                max_off_target_secondary_amplicon_size)
+        primers_nr.off_target_checker = make_off_target_checker(
+            primers_nr, local_template_DNA_fasta, genomic_DNA_fasta,
+            min_acceptable_off_target_secondary_amplicon_size)
 
         print("Generating globally specific secondary primer pairs")
         primer_pairs_secondary = primers_nr.primer_pairs(
             check_valid = True, max_amplicon_size = secondary_PCR_amplicon_size[1], include_pos = local_pos,
-            max_off_target_amplicon_size = max_off_target_secondary_amplicon_size, full = False, specific_in_template = 1)
+            min_acceptable_off_target_amplicon_size = min_acceptable_off_target_secondary_amplicon_size,
+            full = False, specific_in_template = 1)
         ## collapse to unique primer sequence combinations and sort by penalty
         primer_pairs_secondary = sort_unique_primer_pairs(primer_pairs_secondary)
 
@@ -204,7 +207,8 @@ def primerg(gRNA_pos, template_DNA_fasta, suppress_output_message = False, print
             print("Generating locally specific secondary primer pairs")
             primer_pairs_secondary = primers_nr.primer_pairs(
                 check_valid = True, max_amplicon_size = secondary_PCR_amplicon_size[1], include_pos = local_pos,
-                max_off_target_amplicon_size = max_off_target_secondary_amplicon_size, full = False, specific_in_template = 1)
+                min_acceptable_off_target_amplicon_size = min_acceptable_off_target_secondary_amplicon_size,
+                full = False, specific_in_template = 1)
             ## collapse to unique primer sequence combinations and sort by penalty
             primer_pairs_secondary = sort_unique_primer_pairs(primer_pairs_secondary)
 

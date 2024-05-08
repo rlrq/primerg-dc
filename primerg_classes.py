@@ -262,7 +262,8 @@ class CollapsedPrimer3(CollapsedPrimers):
     ## yields PrimerPairPrimer3 objects
     def _primer_pairs(self, check_valid = True,
                       min_amplicon_size = 0, max_amplicon_size = float("Inf"), include_pos = None,
-                      primers_off_target_checker = None, max_off_target_amplicon_size = 0, primer3_args = None,
+                      primers_off_target_checker = None,
+                      min_acceptable_off_target_amplicon_size = 0, primer3_args = None,
                       full = False, specific_in_template = 1):
         if include_pos is None: include_pos = self.target
         logging.debug(' '.join(map(str, [min_amplicon_size, max_amplicon_size, include_pos])))
@@ -271,7 +272,7 @@ class CollapsedPrimer3(CollapsedPrimers):
             primers_off_target_checker = self.off_target_checker
         if check_valid and primers_off_target_checker is not None:
             invalid_pairs_off_target = set(primers_off_target_checker.invalid_primer_pairs(
-                max_off_target_amplicon_size = max_off_target_amplicon_size,
+                min_acceptable_off_target_amplicon_size = min_acceptable_off_target_amplicon_size,
                 seq = True, specific_in_template = specific_in_template
             ))
             logging.info(''.join(map(str, ["  # invalid pairs by off-target: ", len(invalid_pairs_off_target)])))
@@ -493,7 +494,7 @@ class PrimersOffTargetChecker():
     ## if specific_in_template=0: ignore specificity in template
     ## elif specific_in_template=1: at least one primer of a pair must be specific in template
     ## elif specific_in_template>1: >1 primers of a pair (in practice this is just 2 primers) must be specific in template
-    def invalid_primer_pairs(self, max_off_target_amplicon_size = 0,
+    def invalid_primer_pairs(self, min_acceptable_off_target_amplicon_size = 0,
                              forgive_coords = None, seq = False, specific_in_template = 1):
         ## generate filtering functions
         within_forgive_coords = self._make_within_forgive_coords(forgive_coords = forgive_coords)
@@ -537,8 +538,8 @@ class PrimersOffTargetChecker():
                     ## (or if + pos is greater than - pos), move on to next - primer
                     if pos_plus[0] >= pos_minus[0]:
                         continue
-                    ## ALLOW: if + and - primers are > max_off_target_amplicon_size apart
-                    elif pos_minus[0] - pos_plus[-1] > max_off_target_amplicon_size:
+                    ## ALLOW: if + and - primers are >= min_acceptable_off_target_amplicon_size apart
+                    elif pos_minus[0] - pos_plus[-1] >= min_acceptable_off_target_amplicon_size:
                         continue
                     ## CONDITIONAL ALLOW: if within forgive_coords
                     elif within_forgive_coords(subject_id, *pos_plus, *pos_minus):

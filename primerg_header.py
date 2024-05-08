@@ -39,7 +39,7 @@ max_target_seqs = 50000
 min_primer_len = None                   # The minimum length of alignment between primer and template to consider a primer as unspecific; default 10 bp is minimum for annealing prior to extension
 total_mismatch = None                    # The minimum number of mismatches between primer and template to consider a primer as unspecific; default is 6 (each unaligned position counts as a mismatch)
 three_prime_match = None                  # At least X matches within the last 5 bp at the 3' end; default is 3 (counts from the end of the primer; each unaligned position at the 3' end counts as a mismatch)
-valid_amplicon_size = None             # Size of amplicon produced by unspecific primers to be considered valid amplicon, default is 500 ***************** 500
+valid_amplicon_size = None             # Size of amplicon produced by unspecific primers to be considered valid amplicon, default is 500 ***************** 500  (defunct. I'm not sure it was even used by the original primerg)
 NGS_amplicon_size = None               # Length of amplicon of EACH primer in paired-end sequencing; default is set at 150 for iSeq **********  (defunct. see secondary_PCR_amplicon_size)
 
 #  Primerg
@@ -54,8 +54,8 @@ secondary_PCR_amplicon_size = None# Second PCR product size (size of amplicon fo
 num_primer_pair_per_cleavage_pos = None     # Generate x number of primer pairs per cleavage site
 increment = None                         # Increment of allowed primary amplicon size when no primer can be generated
 max_primary_amplicon_size = None      # Maximum primary amplicon size
-max_off_target_primary_amplicon_size = None    # Length of maximum unallowable off-target amplicon size. Definition from https://manual.geneious.com/en/latest/13-Primers.html: 'Off-target primer pairs that result in amplicon sizes larger than specified value are considered as primer candidates due to decreasing efficiency of PCR as the amplicon size increases.'
-max_off_target_secondary_amplicon_size = None    # Length of maximum unallowable off-target amplicon size. Definition from https://manual.geneious.com/en/latest/13-Primers.html: 'Off-target primer pairs that result in amplicon sizes larger than specified value are considered as primer candidates due to decreasing efficiency of PCR as the amplicon size increases.'
+min_acceptable_off_target_primary_amplicon_size = None    # Length of minimum acceptable off-target amplicon size. Definition from https://manual.geneious.com/en/latest/13-Primers.html: 'Off-target primer pairs that result in amplicon sizes larger than specified value are considered as primer candidates due to decreasing efficiency of PCR as the amplicon size increases.' Set to float("Inf") to discard off-target primer pairs regardless of off-target amplicon size.
+min_acceptable_off_target_secondary_amplicon_size = None    # Length of minimum acceptable off-target amplicon size. Definition from https://manual.geneious.com/en/latest/13-Primers.html: 'Off-target primer pairs that result in amplicon sizes larger than specified value are considered as primer candidates due to decreasing efficiency of PCR as the amplicon size increases.' Set to float("Inf") to discard off-target primer pairs regardless of off-target amplicon size.
 on_target_ranges = None               # dict of {<subject_id>: [(<start>, <end>), (<start>, <end>)]}; ignore any off-target amplicons within these ranges (both primers of a pair must be within)
 
 ## Import packages
@@ -311,7 +311,8 @@ def unique_in_fasta(seq, fasta):
 ## previously: invalid_primer_pairs
 ## exclude should be a CollapsedSeqs object. All sequences in 'exclude' will be excluded from BLAST.
 ## merge should be a PrimerOffTargetChecker object. All bindings in 'merge' will be added.
-def make_off_target_checker(collapsed_primer3, template_DNA_fasta, background_DNA_fasta, max_off_target_amplicon_size,
+def make_off_target_checker(collapsed_primer3, template_DNA_fasta, background_DNA_fasta,
+                            min_acceptable_off_target_amplicon_size,
                             exclude_collapsed_seqs = None, merge_primers_off_target_checker = None,
                             intersect_primers_off_target_checker = None,
                             prefix = None):
@@ -324,7 +325,7 @@ def make_off_target_checker(collapsed_primer3, template_DNA_fasta, background_DN
     to_mask = template_in_background(template_DNA_fasta, background_DNA_fasta)
     
     ## instantiate output object PrimersOffTargetChecker to track chrom & position of hits
-    ## allows filtering to allow primer pairs with amplicon > max_off_target_amplicon_size
+    ## allows filtering to allow primer pairs with amplicon >= min_acceptable_off_target_amplicon_size
     binding_primers = PrimersOffTargetChecker(uniq_primers_fasta)
     _num_primers_for_screening = len(binding_primers.primers_map)
     binding_primers.forgive_coords = {subject: set().union(to_mask.get(subject, set()),
