@@ -6,7 +6,8 @@
 #  Required input
 directory = None
 gRNA_fasta = None                 #list of gRNAs in 5'-3' direction (PAM is not required here)
-genomic_DNA_fasta = None          #full fasta file of genome against which to check specificity
+template_DNA_fasta = None
+background_DNA_fastas = []          #full fasta file of genome against which to check specificity
 # template_DNA_fasta = None         #fasta file of a single sequence trimmed around one or more cleavage sites
 
 
@@ -53,13 +54,18 @@ primary_PCR_amplicon_size = None # First PCR product size (size of amplicon as t
 secondary_PCR_amplicon_size = None# Second PCR product size (size of amplicon for sequencing)
 num_primer_pair_per_cleavage_pos = None     # Generate x number of primer pairs per cleavage site
 increment = None                         # Increment of allowed primary amplicon size when no primer can be generated
-max_primary_amplicon_size = None      # Maximum primary amplicon size
+max_primary_PCR_amplicon_size = None      # Maximum primary amplicon size
 min_acceptable_off_target_primary_amplicon_size = None    # Length of minimum acceptable off-target amplicon size. Definition from https://manual.geneious.com/en/latest/13-Primers.html: 'Off-target primer pairs that result in amplicon sizes larger than specified value are considered as primer candidates due to decreasing efficiency of PCR as the amplicon size increases.' Set to float("Inf") to discard off-target primer pairs regardless of off-target amplicon size.
 min_acceptable_off_target_secondary_amplicon_size = None    # Length of minimum acceptable off-target amplicon size. Definition from https://manual.geneious.com/en/latest/13-Primers.html: 'Off-target primer pairs that result in amplicon sizes larger than specified value are considered as primer candidates due to decreasing efficiency of PCR as the amplicon size increases.' Set to float("Inf") to discard off-target primer pairs regardless of off-target amplicon size.
 on_target_ranges = None               # dict of {<subject_id>: [(<start>, <end>), (<start>, <end>)]}; ignore any off-target amplicons within these ranges (both primers of a pair must be within)
 
+verbose = True
+
+## function to add to globals
+addglobals = lambda x:globals().update(x)
+
 ## Import packages
-from primerg_parameters import *
+# from primerg_parameters import *
 from primerg_classes import *
 from sys import exit
 import os
@@ -218,7 +224,7 @@ def primer_design(pos, template, amplicon_size, primer_task = "generic"):
 
 ## returns dict of {<subject_id>: (<start>, <end>)} [range is 0-indexed, end-exclusive]
 ## representing position of exact match(es)
-def template_in_background(template_fasta, background_fasta):
+def template_in_background(template_fasta, background_fasta, genome_prefix = None):
     fout = "template-in-background.blastn.tsv"
     ## BLAST set-up
     custom_fields = ["qseqid", "sseqid", "qstart", "qend", "sstart", "send", "qlen", "gaps", "mismatch"]
@@ -237,6 +243,8 @@ def template_in_background(template_fasta, background_fasta):
     ## execute
     subprocess.run(args, check = True)
     ## filter
+    if genome_prefix is None: make_seq_id = lambda sseqid: sseqid
+    else: make_seq_id = lambda sseqid: f"{genome_prefix}{sseqid}"
     qresult = SearchIO.parse(fout, "blast-tab", fields = custom_fields)
     to_mask = {}
     for query in qresult:
@@ -247,7 +255,8 @@ def template_in_background(template_fasta, background_fasta):
                 if (hsp.query_start == 0 and hsp.query_end == query.seq_len
                     and hsp.gap_num == 0 and hsp.mismatch_num == 0):
                     ## no need to check if hit_start < hit_end; hit_start and hit_end are sorted when using blast-tab
-                    to_mask[hit.id] = to_mask.get(hit.id, set()).union({(hsp.hit_start, hsp.hit_end)})
+                    to_mask[make_seq_id(hit.id)] = to_mask.get(hit.id, set()).union(
+                        {(hsp.hit_start, hsp.hit_end)})
     os.remove(fout)
     return to_mask
 
@@ -315,14 +324,15 @@ def make_off_target_checker(collapsed_primer3, template_DNA_fasta, background_DN
                             min_acceptable_off_target_amplicon_size,
                             exclude_collapsed_seqs = None, merge_primers_off_target_checker = None,
                             intersect_primers_off_target_checker = None,
-                            prefix = None):
+                            prefix = None, genome_prefix = None):
     ## write unique sequences to file in prep for blast
     uniq_primers_fasta = "primerg_specificity_check_primers.fasta"
     collapsed_primer3.write_fasta_uniq(uniq_primers_fasta, prefix = prefix, exclude = exclude_collapsed_seqs)
     
     ## get exact position of template_DNA_fasta in background_DNA_fasta (so we can add to on_target_ranges)
     ## this is a dict {<chrom>: (<start>, <end>)} that we can use to extend on_target_ranges
-    to_mask = template_in_background(template_DNA_fasta, background_DNA_fasta)
+    to_mask = template_in_background(template_DNA_fasta, background_DNA_fasta,
+                                     genome_prefix = genome_prefix)
     
     ## instantiate output object PrimersOffTargetChecker to track chrom & position of hits
     ## allows filtering to allow primer pairs with amplicon >= min_acceptable_off_target_amplicon_size
@@ -382,6 +392,8 @@ def make_off_target_checker(collapsed_primer3, template_DNA_fasta, background_DN
     ## [2] Total number of mismatches does NOT exceed 6
     ## [3] Last 5 bp of 3' end of aligned sequences has at least 3 matches
     
+    if genome_prefix is None: make_seq_id = lambda sseqid: sseqid
+    else: make_seq_id = lambda sseqid: f"{genome_prefix}{sseqid}"
     for i, hsp in enumerate(blast_records):
         sbtop = hsp.sbtop
         if (hsp.query.seq_len >= min_primer_len
@@ -393,7 +405,7 @@ def make_off_target_checker(collapsed_primer3, template_DNA_fasta, background_DN
             #     print("highlight:", binding_primers.primers_map[hsp.query.id],
             #           hsp.hsp.hit_frame, hsp.hsp.query_frame, hsp.btop, hsp.sbtop)
             if hsp.sbtop[-5:].count('.') >= three_prime_match:
-                binding_primers.add_primer(hsp.query.id, hsp.subject.id,
+                binding_primers.add_primer(hsp.query.id, make_seq_id(hsp.subject.id),
                                            (1 if hsp.hsp.hit_frame == hsp.hsp.query_frame else -1),
                                            hsp.hsp.hit_start, hsp.hsp.hit_end)
     
@@ -838,7 +850,8 @@ def gRNA_pam_pos_to_cleavage_pos(gRNA_pam_pos_FR):
     return {'F': F, 'R': R}
 
 ## find cleavage positions from output of gRNA_pam_pos_in_IndexedFasta
-def gRNA_pam_pos_to_seq_and_cleavage_pos(gRNA_pam_pos_FR, ifasta, upper = True, as_string = True):
+def gRNA_pam_pos_to_seq_and_cleavage_pos(gRNA_pam_pos_FR, ifasta,
+                                         upper = True, as_string = True):
     """
     Takes output of gRNA_pam_pos_in_IndexedFasta.
     Outputs dict of N elements corresponding to the number of sequences in ifasta.

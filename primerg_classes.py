@@ -583,10 +583,12 @@ class PrimersOffTargetChecker():
         for subject_id, coords_multi in self.template_coords.items():
             for coords in coords_multi:
                 template_raw_primer_instances = []
-                for strand, strand_dat in self.primers[subject_id].items():
-                    for pos, primer_ids in strand_dat.items():
-                        if pos[0] >= coords[0] and pos[1] <= coords[1]:
-                            template_raw_primer_instances.extend(list(primer_ids))
+                subject_dat = self.primers.get(subject_id, None)
+                if subject_dat is not None:
+                    for strand, strand_dat in self.primers[subject_id].items():
+                        for pos, primer_ids in strand_dat.items():
+                            if pos[0] >= coords[0] and pos[1] <= coords[1]:
+                                template_raw_primer_instances.extend(list(primer_ids))
                 output[(subject_id, coords)] = get_count_dict(template_raw_primer_instances)
         return output
     ## returns dict of {<primer_id>: <maximum binding count in any template>}
