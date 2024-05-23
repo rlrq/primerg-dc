@@ -152,11 +152,11 @@ ph.addglobals({varname: val for varname, val in globals().items()
 pc.addglobals({varname: val for varname, val in globals().items()
                if varname in primerg_global_args})
 
-test_args = primerg_global_args.union({"gRNA_fasta", "background_DNA_fastas", "template_DNA_fasta", "directory"})
-print({varname: val for varname, val in globals().items()
-       if varname in test_args})
+# test_args = primerg_global_args.union({"gRNA_fasta", "background_DNA_fastas", "template_DNA_fasta", "directory"})
+# print({varname: val for varname, val in globals().items()
+#        if varname in test_args})
 
-exit(0)
+# exit(0)
 
 ## use verbose as flag to prevent users from accessing logging levels < INFO
 logging_level = logging.INFO if ph.verbose else logging.WARNING
