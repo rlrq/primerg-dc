@@ -9,6 +9,8 @@
 ## Each extracted genomic sequence is passed to primerg_contiguous.py for primer generation.
 ## Output is merged into a single dataframe and written to file.
 
+output_pd = False
+
 primerg_global_args = {
     'pam', 'gRNA_len', 'cleavage_pos',
     'primer_opt_size', 'primer_min_size', 'primer_max_size',
@@ -53,16 +55,10 @@ parser.add_argument('-b', "--bg", "--background", dest = "background_DNA_fastas"
                     nargs = '+', action = "extend", default = [])
 args = parser.parse_args()
 
-## parse paths
-directory = os.path.abspath(args.directory)
-gRNA_fasta = os.path.abspath(args.gRNA_fasta)
-template_DNA_fasta = os.path.abspath(args.template_DNA_fasta)
-background_DNA_fastas = [os.path.abspath(fname) for fname in args.background_DNA_fastas]
-
 ## check if param file was passed to programme
 ## if no parameter file given, import primerg_parameters from current directory
 if args.param_file is None:
-    from primer_parameters import *
+    from primerg_parameters import *
 ## if parameter file is passed to programme
 else:
     param_file = os.path.abspath(args.param_file)
@@ -76,7 +72,7 @@ else:
         with open(tmp_tsv, 'r') as f:
             raw_contents = [line[:-1].split('\t') for line in f.readlines()]
         with open(tmp_py, 'w+') as f:
-            param_entries = [line for line in raw_contents if line[2] != '' and line[0] != "Parameter"]
+            param_entries = [line for line in raw_contents if line[1] != '' and line[0] != "Parameter"]
             f.write('\n'.join([(line[0] + '=' + ("None" if line[1] == '' else line[1]))
                                for line in param_entries]))
         ## import module by name in variable
@@ -110,8 +106,42 @@ if output_excel is None and output_tsv is None:
     print(" - Use 'output_tsv' to write output to a tab-separated text file")
     exit(1)
 
+## parse paths & potentially clashing inputs
+if "directory" not in globals() or directory is None:
+    directory = os.getcwd() if args.directory is None else os.path.abspath(args.directory)
+else:
+    directory = os.path.abspath(directory)
+
+if "gRNA_fasta" not in globals() or gRNA_fasta is None:
+    gRNA_fasta = None if args.gRNA_fasta is None else os.path.abspath(args.gRNA_fasta)
+else:
+    gRNA_fasta = os.path.abspath(gRNA_fasta)
+
+if "template_DNA_fasta" not in globals() or template_DNA_fasta is None:
+    template_DNA_fasta = None if args.template_DNA_fasta is None else os.path.abspath(args.template_DNA_fasta)
+else:
+    template_DNA_fasta = os.path.abspath(template_DNA_fasta)
+
+new_background_DNA_fastas = [os.path.abspath(fname) for fname in args.background_DNA_fastas]
+if "background_DNA_fastas" not in globals() or background_DNA_fastas is []:
+    background_DNA_fastas = new_background_DNA_fastas
+else:
+    if isinstance(background_DNA_fastas, str):
+        background_DNA_fastas = [os.path.abspath(fname) for fname in background_DNA_fastas.split(',')]
+    background_DNA_fastas.extend(new_background_DNA_fastas)
+
 ## parse other args
 if on_target_ranges is None: on_target_ranges = {}
+
+## exit if required inputs are not given
+if gRNA_fasta is None:
+    print("Fasta file of gRNA sequences is required. Use '--grna <path to file>' at the command line or update gRNA_fasta in the parameters file.")
+    exit(1)
+
+if template_DNA_fasta is None:
+    print("Fasta file of template is required. Use '--template <path to file>' at the command line or update template_DNA_fasta in the parameters file.")
+    exit(1)
+
 
 ## import other primerg modules & update globals
 import primerg_header as ph
@@ -122,6 +152,11 @@ ph.addglobals({varname: val for varname, val in globals().items()
 pc.addglobals({varname: val for varname, val in globals().items()
                if varname in primerg_global_args})
 
+test_args = primerg_global_args.union({"gRNA_fasta", "background_DNA_fastas", "template_DNA_fasta", "directory"})
+print({varname: val for varname, val in globals().items()
+       if varname in test_args})
+
+exit(0)
 
 ## use verbose as flag to prevent users from accessing logging levels < INFO
 logging_level = logging.INFO if ph.verbose else logging.WARNING
@@ -222,5 +257,9 @@ if output_tsv:
         print(f"Complete. TSV file exported as {directory}/{output_tsv}")
     except PermissionError:
         print(f"Please close {output_tsv} and try again")
+
+## if output pandas df
+if output_pd:
+    df_final
 
 exit(0)
