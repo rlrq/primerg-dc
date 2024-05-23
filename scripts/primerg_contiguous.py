@@ -62,7 +62,7 @@
 addglobals = lambda x:globals().update(x)
 
 ## Import packages
-import scripts.primerg_header as ph
+from . import primerg_header as ph
 import pandas as pd
 import logging
 
