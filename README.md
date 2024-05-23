@@ -60,8 +60,8 @@ Openpyxl for python3
 
 
 ## Quick start
-1.	Put primerg-dc.py, primerg_parameters.py, the scripts directory (including contents), and fasta file of your [1] genomic template and [2] gRNA sequences (5’-3’ direction) in the same directory.
-2.	Open primerg_parameters.py with text editor or python IDE. Edit section on “Required input” (directory and input file names) and “Optional input”.
+1.	Put primerg-dc.py, primerg-dc_parameters.py, the scripts directory (including contents), and fasta file of your [1] genomic template and [2] gRNA sequences (5’-3’ direction) in the same directory.
+2.	Open primerg-dc_parameters.py with text editor or python IDE. Edit section on “Required input” (directory and input file names) and “Optional input”.
 3.	Navigate to the directory in Ubuntu, e.g. if your directory named “PRIMERg” is on desktop: 
 ```cd /mnt/c/Users/cherw/Desktop/PRIMERg```
 5.	```python3 primerg-dc.py```
