@@ -8,7 +8,7 @@
 directory = '/mnt/chaelab/rachelle/scripts/primerg/primerg-dc/test2' ## set to None if specifying at command line
 gRNA_fasta = "test_gRNA.fasta"                   #list of gRNAs in 5'-3' direction (PAM is not required here) (set to None if specifying at command line)
 template_DNA_fasta = "test_genomic.fasta"          # fasta file of genome in which gRNA is meant to be identified (set to None if specifying at command line)
-background_DNA_fastas = []                         # list of fasta file of background genomes against which specificity is to be checked
+background_DNA_fastas = []                         # list of fasta file of background genomes against which specificity is to be checked (optional if template_DNA_fasta is the only background)
 # gRNA_fasta = "test_gRNA_ADR1-NRG1.fasta"                   #list of gRNAs in 5'-3' direction (PAM is not required here)
 # genomic_DNA_fasta = "/mnt/chaelab/shared/genomes/TAIR10/fasta/a_thaliana_all.fasta"          #full fasta file of genome against which to check specificity
 

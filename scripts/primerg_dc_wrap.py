@@ -42,7 +42,7 @@ from Bio import SeqIO
 from Bio.Seq import Seq
 from Bio.SeqRecord import SeqRecord
 
-from index_fasta import IndexedFasta
+from scripts.index_fasta import IndexedFasta
 
 import argparse
 
@@ -144,8 +144,8 @@ if template_DNA_fasta is None:
 
 
 ## import other primerg modules & update globals
-import primerg_header as ph
-import primerg_contiguous as pc
+import scripts.primerg_header as ph
+import scripts.primerg_contiguous as pc
 
 ph.addglobals({varname: val for varname, val in globals().items()
                if varname in primerg_global_args})

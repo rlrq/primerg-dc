@@ -66,7 +66,7 @@ addglobals = lambda x:globals().update(x)
 
 ## Import packages
 # from primerg_parameters import *
-from primerg_classes import *
+from scripts.primerg_classes import *
 from sys import exit
 import os
 import primer3
